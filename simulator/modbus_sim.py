@@ -20,8 +20,7 @@ import asyncio
 import random
 import logging
 from pymodbus.server import StartAsyncTcpServer
-from pymodbus.datastore import ModbusServerContext
-from pymodbus.datastore.store import ModbusSequentialDataBlock
+from pymodbus.datastore import ModbusServerContext, ModbusSequentialDataBlock
 from pymodbus.transaction import ModbusSocketFramer
 from pymodbus.client import AsyncModbusTcpClient
 
