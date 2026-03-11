@@ -21,7 +21,6 @@ import random
 import logging
 from pymodbus.server import StartAsyncTcpServer
 from pymodbus.datastore import ModbusServerContext, ModbusSequentialDataBlock
-from pymodbus.transaction import ModbusSocketFramer
 from pymodbus.client import AsyncModbusTcpClient
 
 # Configure logging
@@ -71,7 +70,6 @@ class ModbusSimulator:
             await StartAsyncTcpServer(
                 context=self.store,
                 address=(self.host, self.port),
-                framer=ModbusSocketFramer,
             )
             logger.info("Modbus server started successfully")
         except Exception as e:
