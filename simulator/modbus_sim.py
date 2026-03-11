@@ -21,6 +21,7 @@ import random
 import logging
 from pymodbus.server import StartAsyncTcpServer
 from pymodbus.datastore import ModbusServerContext, ModbusSequentialDataBlock
+from pymodbus.transaction import ModbusSocketFramer
 from pymodbus.client import AsyncModbusTcpClient
 
 # Configure logging
@@ -53,8 +54,10 @@ class ModbusSimulator:
         
         # Initialize data store with default register values
         # Address 0: Voltage, Address 1: Frequency, Address 2: Current, Address 3: Power
-        data_block = ModbusSequentialDataBlock(0, [230, 60, 500, 5000] + [0] * 96)
-        self.store = ModbusServerContext(data_block)
+        self.store = ModbusServerContext(
+            slaves=ModbusSequentialDataBlock(0, [230, 60, 500, 5000] + [0] * 96),
+            single=True
+        )
     
     async def run_server(self):
         """
@@ -68,6 +71,7 @@ class ModbusSimulator:
             await StartAsyncTcpServer(
                 context=self.store,
                 address=(self.host, self.port),
+                framer=ModbusSocketFramer,
             )
             logger.info("Modbus server started successfully")
         except Exception as e:
@@ -84,17 +88,17 @@ class ModbusSimulator:
         logger.info("Generating NORMAL traffic pattern...")
         
         # Read holding registers (voltage, frequency)
-        result = await client.read_holding_registers(0)
+        result = await client.read_holding_registers(address=0, count=4, slave=1)
         if not result.isError():
             logger.info(f"Read registers: {result.registers}")
         
         # Write single register (safe value within bounds)
         safe_voltage = random.randint(220, 240)
-        await client.write_register(0, safe_voltage)
+        await client.write_register(address=0, value=safe_voltage, slave=1)
         logger.info(f"Write safe voltage: {safe_voltage}V")
         
         # Read coils/discrete inputs
-        await client.read_discrete_inputs(0)
+        await client.read_discrete_inputs(address=0, count=8, slave=1)
         
         await asyncio.sleep(1)
     
@@ -110,21 +114,21 @@ class ModbusSimulator:
         # Attack 1: Voltage setpoint out of bounds (>500V)
         malicious_voltage = 650
         logger.critical(f"ATTACK: Attempting to write dangerous voltage: {malicious_voltage}V")
-        await client.write_register(0, malicious_voltage)
+        await client.write_register(address=0, value=malicious_voltage, slave=1)
         
         await asyncio.sleep(0.5)
         
         # Attack 2: Frequency setpoint out of bounds (<55Hz or >65Hz)
         malicious_frequency = 45
         logger.critical(f"ATTACK: Attempting to write dangerous frequency: {malicious_frequency}Hz")
-        await client.write_register(1, malicious_frequency)
+        await client.write_register(address=1, value=malicious_frequency, slave=1)
         
         await asyncio.sleep(0.5)
         
         # Attack 3: Write multiple registers with dangerous values
         dangerous_values = [700, 40, 1200, 15000]  # All out of safe bounds
         logger.critical(f"ATTACK: Writing multiple dangerous values: {dangerous_values}")
-        await client.write_registers(0, dangerous_values)
+        await client.write_registers(address=0, values=dangerous_values, slave=1)
         
         await asyncio.sleep(1)
     
@@ -141,11 +145,11 @@ class ModbusSimulator:
         
         # Set frequency register to emergency level
         emergency_frequency = 59
-        await client.write_register(1, emergency_frequency)
+        await client.write_register(address=1, value=emergency_frequency, slave=1)
         
         # Now attempt writes that would normally be blocked but should pass in fail-open
         logger.warning("Attempting writes during emergency (should enter SHADOW MODE)...")
-        await client.write_register(0, 600)
+        await client.write_register(address=0, value=600, slave=1)
         
         await asyncio.sleep(2)
     
