@@ -1,0 +1,47 @@
+{
+  "frequency_threshold": 59.5,
+  "allowed_function_codes": [1, 2, 3, 4, 5, 6, 16],
+  "blocked_function_codes": [15],
+  "register_bounds": {
+    "voltage": {
+      "min": 0,
+      "max": 500,
+      "unit": "V",
+      "description": "Acceptable voltage range for grid protection"
+    },
+    "frequency": {
+      "min": 55,
+      "max": 65,
+      "unit": "Hz",
+      "description": "Grid frequency operational bounds"
+    },
+    "current": {
+      "min": 0,
+      "max": 1000,
+      "unit": "A",
+      "description": "Maximum current threshold"
+    },
+    "power": {
+      "min": 0,
+      "max": 10000,
+      "unit": "kW",
+      "description": "Power output limits"
+    }
+  },
+  "rate_limits": {
+    "write_commands_per_second": 10,
+    "critical_registers_cooldown_ms": 1000,
+    "description": "Rate limiting to prevent command flooding"
+  },
+  "grid_parameters": {
+    "nominal_frequency_hz": 60.0,
+    "nominal_voltage_v": 230.0,
+    "under_frequency_threshold_hz": 59.5,
+    "over_frequency_threshold_hz": 60.5
+  },
+  "alerting": {
+    "enabled": true,
+    "severity_levels": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+    "siem_integration": "ELK"
+  }
+}

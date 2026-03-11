@@ -1,0 +1,21 @@
+{
+  "name": "gridshield-mvp",
+  "version": "1.0.0",
+  "description": "Semantic firewall for power grid protection - Deep Packet Inspection on Modbus TCP",
+  "main": "main.py",
+  "scripts": {
+    "start": "sudo python3 main.py",
+    "simulator": "sudo python3 simulator/modbus_sim.py",
+    "dev": "python3 main.py"
+  },
+  "keywords": [
+    "cybersecurity",
+    "ICS",
+    "OT",
+    "Modbus",
+    "DPI",
+    "firewall"
+  ],
+  "author": "GridShield Team",
+  "license": "MIT"
+}
