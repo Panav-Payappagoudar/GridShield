@@ -20,8 +20,8 @@ import asyncio
 import random
 import logging
 from pymodbus.server import StartAsyncTcpServer
-from pymodbus.datastore import ModbusSequentialDataBlock
-from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
+from pymodbus.datastore import ModbusServerContext
+from pymodbus.datastore.store import ModbusSequentialDataBlock
 from pymodbus.transaction import ModbusSocketFramer
 from pymodbus.client import AsyncModbusTcpClient
 
@@ -55,14 +55,10 @@ class ModbusSimulator:
         
         # Initialize data store with default register values
         # Address 0: Voltage, Address 1: Frequency, Address 2: Current, Address 3: Power
-        self.store = ModbusSlaveContext(
-            di=ModbusSequentialDataBlock(0, [0] * 100),  # Discrete Inputs
-            co=ModbusSequentialDataBlock(0, [0] * 100),  # Coils
-            hr=ModbusSequentialDataBlock(0, [230, 60, 500, 5000] + [0] * 96),  # Holding Registers
-            ir=ModbusSequentialDataBlock(0, [0] * 100),  # Input Registers
+        self.store = ModbusServerContext(
+            slaves=ModbusSequentialDataBlock(0, [230, 60, 500, 5000] + [0] * 96),
+            single=True
         )
-        
-        self.context = ModbusServerContext(slaves=self.store, single=True)
     
     async def run_server(self):
         """
@@ -74,7 +70,7 @@ class ModbusSimulator:
         
         try:
             await StartAsyncTcpServer(
-                context=self.context,
+                context=self.store,
                 address=(self.host, self.port),
                 framer=ModbusSocketFramer,
             )
