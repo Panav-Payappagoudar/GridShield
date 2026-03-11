@@ -84,7 +84,7 @@ class ModbusSimulator:
         logger.info("Generating NORMAL traffic pattern...")
         
         # Read holding registers (voltage, frequency)
-        result = await client.read_holding_registers(address=0, count=4, slave=1)
+        result = await client.read_holding_registers(address=0, count=4, unit=1)
         if not result.isError():
             logger.info(f"Read registers: {result.registers}")
         
