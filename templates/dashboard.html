@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GridShield - Power Grid Cybersecurity Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg viewBox="0 0 100 100" class="logo-icon">
+                    <path d="M50 5 L90 25 L90 75 L50 95 L10 75 L10 25 Z" fill="none" stroke="#00d4ff" stroke-width="3"/>
+                    <path d="M50 20 L70 30 L70 70 L50 80 L30 70 L30 30 Z" fill="#00d4ff" opacity="0.3"/>
+                </svg>
+                <h1>GridShield</h1>
+            </div>
+            <div class="system-status">
+                <span id="statusIndicator" class="status-indicator offline"></span>
+                <span id="statusText">OFFLINE</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="packetsCaptured">0</div>
+                        <div class="stat-label">Packets Captured</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">✓</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="commandsAllowed">0</div>
+                        <div class="stat-label">Commands Allowed</div>
+                    </div>
+                </div>
+
+                <div class="stat-card warning">
+                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="violationsDetected">0</div>
+                        <div class="stat-label">Violations Detected</div>
+                    </div>
+                </div>
+
+                <div class="stat-card danger">
+                    <div class="stat-icon">🚫</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="commandsBlocked">0</div>
+                        <div class="stat-label">Commands Blocked</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid Frequency & Mode -->
+            <div class="grid-section">
+                <div class="card">
+                    <h2>Grid Status</h2>
+                    <div class="grid-metrics">
+                        <div class="metric">
+                            <label>Grid Frequency</label>
+                            <div class="value">
+                                <span id="gridFrequency">60.00</span> Hz
+                            </div>
+                            <div class="progress-bar">
+                                <div id="frequencyBar" class="progress-fill normal"></div>
+                            </div>
+                        </div>
+
+                        <div class="metric">
+                            <label>Operational Mode</label>
+                            <div class="mode-display">
+                                <span id="operationalMode" class="mode-badge normal">NORMAL</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Control Panel -->
+                <div class="card">
+                    <h2>Control Panel</h2>
+                    <div class="controls">
+                        <button id="startBtn" class="btn btn-primary" onclick="startSystem()">
+                            ▶ Start GridShield
+                        </button>
+                        <button id="stopBtn" class="btn btn-danger" onclick="stopSystem()" disabled>
+                            ⏹ Stop System
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traffic Chart -->
+            <div class="card full-width">
+                <h2>Real-Time Traffic Analysis</h2>
+                <canvas id="trafficChart"></canvas>
+            </div>
+
+            <!-- Events Log -->
+            <div class="card full-width">
+                <h2>Live Events Log</h2>
+                <div class="events-log" id="eventsLog">
+                    <div class="event-placeholder">No events yet. Start the system to monitor traffic.</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        
+        // Chart.js setup
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        const trafficChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Allowed Commands',
+                    data: [],
+                    borderColor: '#00ff88',
+                    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }, {
+                    label: 'Blocked Commands',
+                    data: [],
+                    borderColor: '#ff4444',
+                    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 0
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#fff'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to GridShield server');
+            updateStatus(true);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            updateStatus(false);
+        });
+
+        socket.on('initial_data', (data) => {
+            updateStats(data.stats);
+            loadEvents(data.events);
+        });
+
+        socket.on('stats_update', (stats) => {
+            updateStats(stats);
+        });
+
+        socket.on('new_event', (event) => {
+            addEventToLog(event);
+            updateChart(event);
+        });
+
+        socket.on('system_started', () => {
+            updateStatus(true);
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        });
+
+        socket.on('system_stopped', () => {
+            updateStatus(false);
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        });
+
+        function updateStatus(online) {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            
+            if (online) {
+                indicator.className = 'status-indicator online';
+                text.textContent = 'ONLINE';
+            } else {
+                indicator.className = 'status-indicator offline';
+                text.textContent = 'OFFLINE';
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('packetsCaptured').textContent = stats.packets_captured || 0;
+            document.getElementById('commandsAllowed').textContent = stats.commands_allowed || 0;
+            document.getElementById('violationsDetected').textContent = stats.violations_detected || 0;
+            document.getElementById('commandsBlocked').textContent = stats.commands_blocked || 0;
+            
+            if (stats.grid_frequency) {
+                document.getElementById('gridFrequency').textContent = stats.grid_frequency.toFixed(2);
+                updateFrequencyBar(stats.grid_frequency);
+            }
+            
+            if (stats.mode) {
+                const modeEl = document.getElementById('operationalMode');
+                modeEl.textContent = stats.mode;
+                modeEl.className = `mode-badge ${stats.mode.toLowerCase()}`;
+            }
+        }
+
+        function updateFrequencyBar(frequency) {
+            const bar = document.getElementById('frequencyBar');
+            const minFreq = 55;
+            const maxFreq = 65;
+            const percentage = ((frequency - minFreq) / (maxFreq - minFreq)) * 100;
+            
+            bar.style.width = `${Math.max(0, Math.min(100, percentage))}%`;
+            
+            if (frequency < 59.5) {
+                bar.className = 'progress-fill critical';
+            } else if (frequency > 60.5) {
+                bar.className = 'progress-fill warning';
+            } else {
+                bar.className = 'progress-fill normal';
+            }
+        }
+
+        function loadEvents(events) {
+            const log = document.getElementById('eventsLog');
+            log.innerHTML = '';
+            events.forEach(event => addEventToLog(event));
+        }
+
+        function addEventToLog(event) {
+            const log = document.getElementById('eventsLog');
+            const placeholder = log.querySelector('.event-placeholder');
+            if (placeholder) placeholder.remove();
+            
+            const eventEl = document.createElement('div');
+            eventEl.className = `event-item severity-${event.severity.toLowerCase()}`;
+            eventEl.innerHTML = `
+                <div class="event-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+                <div class="event-content">
+                    <span class="event-severity">${event.severity}</span>
+                    <span class="event-message">${event.message}</span>
+                </div>
+            `;
+            
+            log.insertBefore(eventEl, log.firstChild);
+            
+            // Keep only last 50 events in DOM
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function updateChart(event) {
+            const now = new Date().toLocaleTimeString();
+            
+            if (event.type === 'MODBUS_TRAFFIC') {
+                trafficChart.data.labels.push(now);
+                trafficChart.data.datasets[0].data.push(event.data.allowed ? 1 : 0);
+                trafficChart.data.datasets[1].data.push(!event.data.allowed ? 1 : 0);
+                
+                // Keep last 30 seconds
+                if (trafficChart.data.labels.length > 30) {
+                    trafficChart.data.labels.shift();
+                    trafficChart.data.datasets[0].data.shift();
+                    trafficChart.data.datasets[1].data.shift();
+                }
+                
+                trafficChart.update();
+            }
+        }
+
+        async function startSystem() {
+            try {
+                const response = await fetch('/api/start', { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                console.log('System started:', data.message);
+            } catch (error) {
+                console.error('Failed to start system:', error);
+                alert('Failed to start system: ' + error.message);
+            }
+        }
+
+        async function stopSystem() {
+            try {
+                const response = await fetch('/api/stop', { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                console.log('System stopped:', data.message);
+            } catch (error) {
+                console.error('Failed to stop system:', error);
+                alert('Failed to stop system: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

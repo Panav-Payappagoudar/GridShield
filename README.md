@@ -45,17 +45,43 @@ gridshield-mvp/
 
 ### Installation
 
-1. **Install dependencies:**
+1. **Install core dependencies:**
 ```bash
 pip install -r requirements.txt
 ```
 
-2. **Run GridShield (Terminal 1):**
+2. **Install UI dependencies (optional):**
+```bash
+pip install -r requirements-ui.txt
+```
+
+### Running with Web Dashboard (Recommended)
+
+**Terminal 1 - Start Web Server:**
+```bash
+python web_server.py
+```
+
+Open browser to: **http://localhost:5000**
+
+**Terminal 2 - Start Modbus Simulator:**
+```bash
+sudo python3 simulator/modbus_sim.py
+```
+
+**Terminal 3 - Start GridShield Engine:**
 ```bash
 sudo python3 main.py
 ```
 
-3. **Generate test traffic (Terminal 2):**
+### Command Line Mode (No UI)
+
+**Terminal 1:**
+```bash
+sudo python3 main.py
+```
+
+**Terminal 2:**
 ```bash
 sudo python3 simulator/modbus_sim.py
 ```
