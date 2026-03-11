@@ -84,7 +84,7 @@ class ModbusSimulator:
         logger.info("Generating NORMAL traffic pattern...")
         
         # Read holding registers (voltage, frequency)
-        result = await client.read_holding_registers(0, 4)
+        result = await client.read_holding_registers(0)
         if not result.isError():
             logger.info(f"Read registers: {result.registers}")
         
@@ -94,7 +94,7 @@ class ModbusSimulator:
         logger.info(f"Write safe voltage: {safe_voltage}V")
         
         # Read coils/discrete inputs
-        await client.read_discrete_inputs(0, 8)
+        await client.read_discrete_inputs(0)
         
         await asyncio.sleep(1)
     
