@@ -2,20 +2,34 @@
   "name": "gridshield-mvp",
   "version": "1.0.0",
   "description": "Semantic firewall for power grid protection - Deep Packet Inspection on Modbus TCP",
-  "main": "main.py",
-  "scripts": {
-    "start": "sudo python3 main.py",
-    "simulator": "sudo python3 simulator/modbus_sim.py",
-    "dev": "python3 main.py"
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": false,
+      "username": "codespace",
+      "userUid": "1000",
+      "userGid": "1000"
+    }
   },
-  "keywords": [
-    "cybersecurity",
-    "ICS",
-    "OT",
-    "Modbus",
-    "DPI",
-    "firewall"
-  ],
-  "author": "GridShield Team",
-  "license": "MIT"
+  "onCreateCommand": "sudo apt-get update && sudo apt-get install -y libpcap-dev tcpdump && pip install -r requirements.txt",
+  "postCreateCommand": "pip install -r requirements.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3"
+      }
+    }
+  },
+  "remoteEnv": {
+    "PYTHONPATH": "${workspaceFolder}"
+  },
+  "runArgs": [
+    "--cap-add=NET_RAW",
+    "--cap-add=NET_ADMIN"
+  ]
 }
