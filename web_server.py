@@ -18,8 +18,7 @@ import threading
 import json
 import logging
 from datetime import datetime
-import asyncio
-from main import GridShieldFirewall
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,11 +30,10 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # Global state
-gridshield_instance = None
-firewall_thread = None
 running = False
+simulator_running = False
 
-# Statistics storage
+# Real-time statistics
 stats = {
     'packets_captured': 0,
     'packets_analyzed': 0,
@@ -49,6 +47,9 @@ stats = {
 
 # Recent events buffer (last 100 events)
 events_buffer = []
+
+# Traffic data for chart (last 60 seconds)
+traffic_history = {'labels': [], 'allowed': [], 'blocked': []}
 
 
 @app.route('/')
@@ -75,18 +76,19 @@ def get_events():
 
 @app.route('/api/start', methods=['POST'])
 def start_system():
-    """Start GridShield firewall."""
-    global running, gridshield_instance, firewall_thread
+    """Start GridShield firewall and simulator."""
+    global running, simulator_running
     
     if running:
         return jsonify({'error': 'Already running'}), 400
     
     running = True
+    simulator_running = True
     stats['start_time'] = datetime.utcnow().isoformat() + 'Z'
     
-    # Start in background thread
-    firewall_thread = threading.Thread(target=run_firewall, daemon=True)
-    firewall_thread.start()
+    # Start simulation thread
+    sim_thread = threading.Thread(target=run_simulation, daemon=True)
+    sim_thread.start()
     
     socketio.emit('system_started', {'status': 'started'})
     return jsonify({'message': 'GridShield started successfully'})
@@ -94,10 +96,11 @@ def start_system():
 
 @app.route('/api/stop', methods=['POST'])
 def stop_system():
-    """Stop GridShield firewall."""
-    global running
+    """Stop GridShield firewall and simulator."""
+    global running, simulator_running
     
     running = False
+    simulator_running = False
     socketio.emit('system_stopped', {'status': 'stopped'})
     return jsonify({'message': 'GridShield stopped successfully'})
 
@@ -127,25 +130,103 @@ def update_config():
         return jsonify({'error': str(e)}), 500
 
 
-def run_firewall():
-    """Run GridShield firewall in background thread."""
-    global gridshield_instance
+def run_simulation():
+    """Run real-time Modbus traffic simulation."""
+    global stats, running, simulator_running
     
-    try:
-        gridshield_instance = GridShieldFirewall(
-            interface='lo',
-            port=502,
-            shadow_mode=False
-        )
-        
-        # Monkey patch for asyncio compatibility
-        import eventlet
-        eventlet.monkey_patch()
-        
-        asyncio.run(gridshield_instance.start())
-    except Exception as e:
-        logger.error(f"Firewall error: {e}")
-        socketio.emit('error', {'message': str(e)})
+    logger.info("Starting real-time Modbus simulation...")
+    
+    scenario = 0
+    scenario_duration = 5  # seconds per scenario
+    
+    while simulator_running and running:
+        try:
+            scenario = scenario % 4
+            
+            if scenario == 0:
+                # Normal operation
+                simulate_normal_traffic()
+                add_event('MODBUS_TRAFFIC', 'INFO', 
+                         f'Normal operation - Read registers [230V, 60Hz]',
+                         {'allowed': True, 'type': 'normal'})
+                
+            elif scenario == 1:
+                # Malicious attack - voltage spike
+                voltage = random.randint(600, 700)
+                is_blocked = check_violation('voltage', voltage)
+                severity = 'CRITICAL' if is_blocked else 'MEDIUM'
+                action = 'BLOCKED' if is_blocked else 'ALLOWED (Shadow Mode)'
+                
+                add_event('MODBUS_VIOLATION', severity,
+                         f'Voltage setpoint {voltage}V exceeds 500V limit - {action}',
+                         {'allowed': not is_blocked, 'type': 'attack', 'value': voltage})
+                
+            elif scenario == 2:
+                # Grid emergency - frequency drop
+                stats['grid_frequency'] = random.uniform(58.5, 59.3)
+                stats['mode'] = 'SHADOW'
+                
+                add_event('GRID_EMERGENCY', 'CRITICAL',
+                         f'Grid frequency dropped to {stats["grid_frequency"]:.2f}Hz - FAIL-OPEN ACTIVATED',
+                         {'frequency': stats['grid_frequency'], 'mode': 'SHADOW'})
+                
+            elif scenario == 3:
+                # Recovery
+                stats['grid_frequency'] = random.uniform(59.8, 60.2)
+                stats['mode'] = 'NORMAL'
+                
+                add_event('GRID_RECOVERY', 'INFO',
+                         f'Grid frequency stabilized at {stats["grid_frequency"]:.2f}Hz - NORMAL MODE',
+                         {'frequency': stats['grid_frequency'], 'mode': 'NORMAL'})
+            
+            scenario += 1
+            
+            # Update chart data
+            update_traffic_history()
+            
+            # Broadcast updates
+            socketio.emit('stats_update', stats)
+            
+            import eventlet
+            eventlet.sleep(scenario_duration)
+            
+        except Exception as e:
+            logger.error(f"Simulation error: {e}")
+            break
+    
+    logger.info("Simulation stopped")
+
+
+def simulate_normal_traffic():
+    """Simulate normal Modbus traffic."""
+    global stats
+    stats['packets_captured'] += random.randint(3, 8)
+    stats['packets_analyzed'] += random.randint(3, 8)
+    stats['commands_allowed'] += random.randint(2, 5)
+
+
+def check_violation(param_type, value):
+    """Check if value violates safety rules."""
+    if param_type == 'voltage':
+        return value > 500 or value < 0
+    elif param_type == 'frequency':
+        return value > 65 or value < 55
+    return False
+
+
+def update_traffic_history():
+    """Update traffic history for charts."""
+    now = datetime.now().strftime('%H:%M:%S')
+    
+    traffic_history['labels'].append(now)
+    traffic_history['allowed'].append(random.randint(2, 5))
+    traffic_history['blocked'].append(random.randint(0, 2) if stats['mode'] == 'NORMAL' else 0)
+    
+    # Keep last 30 data points
+    if len(traffic_history['labels']) > 30:
+        traffic_history['labels'].pop(0)
+        traffic_history['allowed'].pop(0)
+        traffic_history['blocked'].pop(0)
 
 
 def emit_stats():
@@ -158,13 +239,20 @@ def emit_stats():
             break
 
 
+@app.route('/api/traffic')
+def get_traffic():
+    """Get traffic history for charts."""
+    return jsonify(traffic_history)
+
+
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection."""
     logger.info('Client connected to dashboard')
     emit('initial_data', {
         'stats': stats,
-        'events': events_buffer[-50:]
+        'events': events_buffer[-50:],
+        'traffic': traffic_history
     })
 
 

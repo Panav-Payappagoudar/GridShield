@@ -3,117 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GridShield - Power Grid Cybersecurity Dashboard</title>
+    <title>GridShield - Real-Time Monitoring</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #111;
+            border: 1px solid #333;
+            margin-bottom: 20px;
+        }
+        h1 { color: #00ff88; font-size: 1.8rem; }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .indicator.online { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+        .indicator.offline { background: #666; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #111;
+            border: 1px solid #333;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            color: #888;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .value-green { color: #00ff88; }
+        .value-red { color: #ff4444; }
+        .value-yellow { color: #ffd700; }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: #111;
+            border: 1px solid #333;
+            padding: 20px;
+        }
+        .card h2 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        .metric {
+            margin-bottom: 20px;
+        }
+        .metric label {
+            display: block;
+            color: #888;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .mode-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .mode-normal {
+            background: #00ff88;
+            color: #000;
+        }
+        .mode-shadow {
+            background: #ff4444;
+            color: #fff;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn-start {
+            background: #00ff88;
+            color: #000;
+        }
+        .btn-stop {
+            background: #ff4444;
+            color: #fff;
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #trafficChart {
+            background: #0a0a0a;
+            border-radius: 5px;
+            padding: 10px;
+            height: 250px;
+        }
+        .events {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .event-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #0a0a0a;
+            border-left: 3px solid;
+            font-size: 0.85rem;
+        }
+        .event-info { border-left-color: #00d4ff; }
+        .event-warning { border-left-color: #ffd700; }
+        .event-critical { border-left-color: #ff4444; background: rgba(255,68,68,0.1); }
+        .event-time { color: #666; font-size: 0.75rem; margin-bottom: 5px; }
+        .event-severity {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .severity-info { background: #00d4ff; color: #000; }
+        .severity-warning { background: #ffd700; color: #000; }
+        .severity-critical { background: #ff4444; color: #fff; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    </style>
 </head>
 <body>
-    <div class="dashboard">
+    <div class="container">
         <!-- Header -->
-        <header class="header">
-            <div class="logo">
-                <svg viewBox="0 0 100 100" class="logo-icon">
-                    <path d="M50 5 L90 25 L90 75 L50 95 L10 75 L10 25 Z" fill="none" stroke="#00d4ff" stroke-width="3"/>
-                    <path d="M50 20 L70 30 L70 70 L50 80 L30 70 L30 30 Z" fill="#00d4ff" opacity="0.3"/>
-                </svg>
-                <h1>GridShield</h1>
-            </div>
-            <div class="system-status">
-                <span id="statusIndicator" class="status-indicator offline"></span>
+        <header>
+            <h1>⚡ GridShield</h1>
+            <div class="status">
+                <span id="statusIndicator" class="indicator offline"></span>
                 <span id="statusText">OFFLINE</span>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Statistics Cards -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="packetsCaptured">0</div>
-                        <div class="stat-label">Packets Captured</div>
-                    </div>
+        <!-- Statistics Cards -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Packets Captured</div>
+                <div class="stat-value value-green" id="packetsCaptured">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Commands Allowed</div>
+                <div class="stat-value value-green" id="commandsAllowed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Violations</div>
+                <div class="stat-value value-yellow" id="violationsDetected">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Blocked</div>
+                <div class="stat-value value-red" id="commandsBlocked">0</div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Left Column -->
+            <div>
+                <!-- Traffic Chart -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <h2>📈 Real-Time Traffic</h2>
+                    <canvas id="trafficChart"></canvas>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-icon">✓</div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="commandsAllowed">0</div>
-                        <div class="stat-label">Commands Allowed</div>
-                    </div>
-                </div>
-
-                <div class="stat-card warning">
-                    <div class="stat-icon">⚠️</div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="violationsDetected">0</div>
-                        <div class="stat-label">Violations Detected</div>
-                    </div>
-                </div>
-
-                <div class="stat-card danger">
-                    <div class="stat-icon">🚫</div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="commandsBlocked">0</div>
-                        <div class="stat-label">Commands Blocked</div>
+                <!-- Events Log -->
+                <div class="card">
+                    <h2>📋 Live Events</h2>
+                    <div class="events" id="eventsLog">
+                        <div style="text-align: center; color: #666; padding: 40px;">
+                            No events. Click "Start System" to begin monitoring.
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Grid Frequency & Mode -->
-            <div class="grid-section">
-                <div class="card">
-                    <h2>Grid Status</h2>
-                    <div class="grid-metrics">
-                        <div class="metric">
-                            <label>Grid Frequency</label>
-                            <div class="value">
-                                <span id="gridFrequency">60.00</span> Hz
-                            </div>
-                            <div class="progress-bar">
-                                <div id="frequencyBar" class="progress-fill normal"></div>
-                            </div>
-                        </div>
-
-                        <div class="metric">
-                            <label>Operational Mode</label>
-                            <div class="mode-display">
-                                <span id="operationalMode" class="mode-badge normal">NORMAL</span>
-                            </div>
-                        </div>
+            <!-- Right Column -->
+            <div>
+                <!-- Grid Status -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <h2>🔌 Grid Status</h2>
+                    <div class="metric">
+                        <label>Frequency</label>
+                        <div class="metric-value value-green" id="gridFrequency">60.00 Hz</div>
+                    </div>
+                    <div class="metric">
+                        <label>Mode</label>
+                        <span id="operationalMode" class="mode-badge mode-normal">NORMAL</span>
                     </div>
                 </div>
 
-                <!-- Control Panel -->
+                <!-- Controls -->
                 <div class="card">
-                    <h2>Control Panel</h2>
+                    <h2>🎮 Control</h2>
                     <div class="controls">
-                        <button id="startBtn" class="btn btn-primary" onclick="startSystem()">
-                            ▶ Start GridShield
-                        </button>
-                        <button id="stopBtn" class="btn btn-danger" onclick="stopSystem()" disabled>
-                            ⏹ Stop System
-                        </button>
+                        <button id="startBtn" class="btn-start" onclick="startSystem()">▶ Start</button>
+                        <button id="stopBtn" class="btn-stop" onclick="stopSystem()" disabled>⏹ Stop</button>
                     </div>
                 </div>
             </div>
-
-            <!-- Traffic Chart -->
-            <div class="card full-width">
-                <h2>Real-Time Traffic Analysis</h2>
-                <canvas id="trafficChart"></canvas>
-            </div>
-
-            <!-- Events Log -->
-            <div class="card full-width">
-                <h2>Live Events Log</h2>
-                <div class="events-log" id="eventsLog">
-                    <div class="event-placeholder">No events yet. Start the system to monitor traffic.</div>
-                </div>
-            </div>
-        </main>
+        </div>
     </div>
 
     <script>
@@ -127,45 +260,36 @@
             data: {
                 labels: [],
                 datasets: [{
-                    label: 'Allowed Commands',
+                    label: 'Allowed',
                     data: [],
                     borderColor: '#00ff88',
                     backgroundColor: 'rgba(0, 255, 136, 0.1)',
                     tension: 0.4,
-                    fill: true
+                    fill: true,
+                    pointRadius: 0
                 }, {
-                    label: 'Blocked Commands',
+                    label: 'Blocked',
                     data: [],
                     borderColor: '#ff4444',
                     backgroundColor: 'rgba(255, 68, 68, 0.1)',
                     tension: 0.4,
-                    fill: true
+                    fill: true,
+                    pointRadius: 0
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: {
-                    duration: 0
-                },
+                animation: { duration: 0 },
                 scales: {
-                    x: {
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
-                        }
-                    },
-                    y: {
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
-                        }
+                    x: { grid: { color: '#222' } },
+                    y: { 
+                        beginAtZero: true,
+                        grid: { color: '#222' }
                     }
                 },
                 plugins: {
-                    legend: {
-                        labels: {
-                            color: '#fff'
-                        }
-                    }
+                    legend: { labels: { color: '#fff' } }
                 }
             }
         });
@@ -184,6 +308,12 @@
         socket.on('initial_data', (data) => {
             updateStats(data.stats);
             loadEvents(data.events);
+            if (data.traffic) {
+                trafficChart.data.labels = data.traffic.labels;
+                trafficChart.data.datasets[0].data = data.traffic.allowed;
+                trafficChart.data.datasets[1].data = data.traffic.blocked;
+                trafficChart.update();
+            }
         });
 
         socket.on('stats_update', (stats) => {
@@ -227,31 +357,13 @@
             document.getElementById('commandsBlocked').textContent = stats.commands_blocked || 0;
             
             if (stats.grid_frequency) {
-                document.getElementById('gridFrequency').textContent = stats.grid_frequency.toFixed(2);
-                updateFrequencyBar(stats.grid_frequency);
+                document.getElementById('gridFrequency').textContent = stats.grid_frequency.toFixed(2) + ' Hz';
             }
             
             if (stats.mode) {
                 const modeEl = document.getElementById('operationalMode');
                 modeEl.textContent = stats.mode;
-                modeEl.className = `mode-badge ${stats.mode.toLowerCase()}`;
-            }
-        }
-
-        function updateFrequencyBar(frequency) {
-            const bar = document.getElementById('frequencyBar');
-            const minFreq = 55;
-            const maxFreq = 65;
-            const percentage = ((frequency - minFreq) / (maxFreq - minFreq)) * 100;
-            
-            bar.style.width = `${Math.max(0, Math.min(100, percentage))}%`;
-            
-            if (frequency < 59.5) {
-                bar.className = 'progress-fill critical';
-            } else if (frequency > 60.5) {
-                bar.className = 'progress-fill warning';
-            } else {
-                bar.className = 'progress-fill normal';
+                modeEl.className = `mode-badge ${stats.mode === 'SHADOW' ? 'mode-shadow' : 'mode-normal'}`;
             }
         }
 
@@ -263,43 +375,26 @@
 
         function addEventToLog(event) {
             const log = document.getElementById('eventsLog');
-            const placeholder = log.querySelector('.event-placeholder');
+            const placeholder = log.querySelector('div[style*="text-align: center"]');
             if (placeholder) placeholder.remove();
             
             const eventEl = document.createElement('div');
-            eventEl.className = `event-item severity-${event.severity.toLowerCase()}`;
+            const severityClass = event.severity.toLowerCase() === 'info' ? 'event-info' : 
+                                 event.severity.toLowerCase() === 'critical' ? 'event-critical' : 'event-warning';
+            eventEl.className = `event-item ${severityClass}`;
             eventEl.innerHTML = `
                 <div class="event-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
                 <div class="event-content">
-                    <span class="event-severity">${event.severity}</span>
-                    <span class="event-message">${event.message}</span>
+                    <span class="event-severity severity-${event.severity.toLowerCase()}">${event.severity}</span>
+                    <span>${event.message}</span>
                 </div>
             `;
             
             log.insertBefore(eventEl, log.firstChild);
             
-            // Keep only last 50 events in DOM
+            // Keep only last 50 events
             while (log.children.length > 50) {
                 log.removeChild(log.lastChild);
-            }
-        }
-
-        function updateChart(event) {
-            const now = new Date().toLocaleTimeString();
-            
-            if (event.type === 'MODBUS_TRAFFIC') {
-                trafficChart.data.labels.push(now);
-                trafficChart.data.datasets[0].data.push(event.data.allowed ? 1 : 0);
-                trafficChart.data.datasets[1].data.push(!event.data.allowed ? 1 : 0);
-                
-                // Keep last 30 seconds
-                if (trafficChart.data.labels.length > 30) {
-                    trafficChart.data.labels.shift();
-                    trafficChart.data.datasets[0].data.shift();
-                    trafficChart.data.datasets[1].data.shift();
-                }
-                
-                trafficChart.update();
             }
         }
 
