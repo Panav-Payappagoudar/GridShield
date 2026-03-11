@@ -84,17 +84,17 @@ class ModbusSimulator:
         logger.info("Generating NORMAL traffic pattern...")
         
         # Read holding registers (voltage, frequency)
-        result = await client.read_holding_registers(address=0, count=4, unit=1)
+        result = await client.read_holding_registers(0, 4)
         if not result.isError():
             logger.info(f"Read registers: {result.registers}")
         
         # Write single register (safe value within bounds)
         safe_voltage = random.randint(220, 240)
-        await client.write_register(address=0, value=safe_voltage, unit=1)
+        await client.write_register(0, safe_voltage)
         logger.info(f"Write safe voltage: {safe_voltage}V")
         
         # Read coils/discrete inputs
-        await client.read_discrete_inputs(address=0, count=8, unit=1)
+        await client.read_discrete_inputs(0, 8)
         
         await asyncio.sleep(1)
     
@@ -110,21 +110,21 @@ class ModbusSimulator:
         # Attack 1: Voltage setpoint out of bounds (>500V)
         malicious_voltage = 650
         logger.critical(f"ATTACK: Attempting to write dangerous voltage: {malicious_voltage}V")
-        await client.write_register(address=0, value=malicious_voltage, unit=1)
+        await client.write_register(0, malicious_voltage)
         
         await asyncio.sleep(0.5)
         
         # Attack 2: Frequency setpoint out of bounds (<55Hz or >65Hz)
         malicious_frequency = 45
         logger.critical(f"ATTACK: Attempting to write dangerous frequency: {malicious_frequency}Hz")
-        await client.write_register(address=1, value=malicious_frequency, unit=1)
+        await client.write_register(1, malicious_frequency)
         
         await asyncio.sleep(0.5)
         
         # Attack 3: Write multiple registers with dangerous values
         dangerous_values = [700, 40, 1200, 15000]  # All out of safe bounds
         logger.critical(f"ATTACK: Writing multiple dangerous values: {dangerous_values}")
-        await client.write_registers(address=0, values=dangerous_values, unit=1)
+        await client.write_registers(0, dangerous_values)
         
         await asyncio.sleep(1)
     
@@ -141,11 +141,11 @@ class ModbusSimulator:
         
         # Set frequency register to emergency level
         emergency_frequency = 59
-        await client.write_register(address=1, value=emergency_frequency, unit=1)
+        await client.write_register(1, emergency_frequency)
         
         # Now attempt writes that would normally be blocked but should pass in fail-open
         logger.warning("Attempting writes during emergency (should enter SHADOW MODE)...")
-        await client.write_register(address=0, value=600, unit=1)
+        await client.write_register(0, 600)
         
         await asyncio.sleep(2)
     
