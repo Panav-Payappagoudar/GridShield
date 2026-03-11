@@ -218,12 +218,20 @@ def update_traffic_history():
     """Update traffic history for charts."""
     now = datetime.now().strftime('%H:%M:%S')
     
-    traffic_history['labels'].append(now)
-    traffic_history['allowed'].append(random.randint(2, 5))
-    traffic_history['blocked'].append(random.randint(0, 2) if stats['mode'] == 'NORMAL' else 0)
+    # Generate more realistic traffic patterns
+    base_allowed = random.randint(3, 8)
+    base_blocked = random.randint(0, 3) if stats['mode'] == 'NORMAL' else 0
     
-    # Keep last 30 data points
-    if len(traffic_history['labels']) > 30:
+    # Add some variation based on scenario
+    if stats['violations_detected'] > 0:
+        base_blocked += random.randint(1, 3)
+    
+    traffic_history['labels'].append(now)
+    traffic_history['allowed'].append(base_allowed)
+    traffic_history['blocked'].append(base_blocked)
+    
+    # Keep last 60 data points for better visualization
+    if len(traffic_history['labels']) > 60:
         traffic_history['labels'].pop(0)
         traffic_history['allowed'].pop(0)
         traffic_history['blocked'].pop(0)
@@ -234,7 +242,8 @@ def emit_stats():
     while running:
         try:
             socketio.emit('stats_update', stats)
-            socketio.sleep(1)  # Update every second
+            import eventlet
+            eventlet.sleep(1)  # Update every second
         except:
             break
 
