@@ -53,10 +53,8 @@ class ModbusSimulator:
         
         # Initialize data store with default register values
         # Address 0: Voltage, Address 1: Frequency, Address 2: Current, Address 3: Power
-        self.store = ModbusServerContext(
-            slaves=ModbusSequentialDataBlock(0, [230, 60, 500, 5000] + [0] * 96),
-            single=True
-        )
+        data_block = ModbusSequentialDataBlock(0, [230, 60, 500, 5000] + [0] * 96)
+        self.store = ModbusServerContext(data_block)
     
     async def run_server(self):
         """
